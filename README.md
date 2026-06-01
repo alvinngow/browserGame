@@ -5,7 +5,9 @@ A small 3D isometric action RPG prototype built with Three.js. Move the player a
 ## Run
 
 ```powershell
-python -m http.server 5173
+npm install
+npm run build
+npm run dev
 ```
 
 Then open:
@@ -19,3 +21,9 @@ http://localhost:5173
 - Hold arrow keys or WASD: move smoothly
 - Left click: attack
 - Reset button: restart the run
+
+## Development
+
+- Source: `src/game.ts`
+- Browser build: `dist/game.js`
+- Type-check only: `npm run check`

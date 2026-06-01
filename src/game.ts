@@ -1,10 +1,5 @@
 import * as THREE from "three";
 
-type ThreeBufferGeometry = any;
-type ThreeGroup = any;
-type ThreeMesh = any;
-type ThreeVector3 = any;
-
 type GridPosition = {
   x: number;
   z: number;
@@ -18,7 +13,7 @@ type AttackState = {
   cooldownRemaining: number;
 };
 
-type CrystalMesh = ThreeMesh & {
+type CrystalMesh = THREE.Mesh & {
   userData: {
     homeY: number;
     gridX: number;
@@ -154,7 +149,7 @@ function tileKey(x: number, z: number): string {
   return `${x},${z}`;
 }
 
-function worldPos(x: number, z: number, y = 0): ThreeVector3 {
+function worldPos(x: number, z: number, y = 0): THREE.Vector3 {
   return new THREE.Vector3((x - offsetX) * TILE, y, (z - offsetZ) * TILE);
 }
 
@@ -188,7 +183,10 @@ function createTile(x: number, z: number, kind: string): void {
 }
 
 function createCrystal(x: number, z: number): void {
-  const crystal = new THREE.Mesh(crystalGeometry, materials.crystal) as CrystalMesh;
+  const crystal = new THREE.Mesh(
+    crystalGeometry,
+    materials.crystal,
+  ) as unknown as CrystalMesh;
   crystal.position.copy(worldPos(x, z, 0.36));
   crystal.rotation.set(0.35, 0.2, 0);
   crystal.castShadow = true;
@@ -210,7 +208,7 @@ function createWater(): void {
   scene.add(water);
 }
 
-function createPlayer(): ThreeGroup {
+function createPlayer(): THREE.Group {
   const group = new THREE.Group();
 
   const shadow = new THREE.Mesh(
@@ -247,7 +245,7 @@ function createPlayer(): ThreeGroup {
   return group;
 }
 
-function createSwipeGeometry(): ThreeBufferGeometry {
+function createSwipeGeometry(): THREE.BufferGeometry {
   const vertices: number[] = [];
   const indices: number[] = [];
   const segments = 18;
@@ -282,7 +280,7 @@ function createSwipeGeometry(): ThreeBufferGeometry {
   return geometry;
 }
 
-function createSwipeEffect(): ThreeGroup {
+function createSwipeEffect(): THREE.Group {
   const group = new THREE.Group();
   const main = new THREE.Mesh(
     swipeGeometry,
@@ -364,7 +362,7 @@ function resetGame(): void {
   updateHud();
 }
 
-function worldToGrid(position: ThreeVector3): GridPosition {
+function worldToGrid(position: THREE.Vector3): GridPosition {
   return {
     x: position.x / TILE + offsetX,
     z: position.z / TILE + offsetZ,
@@ -385,7 +383,7 @@ function circleIntersectsTile(
   return distanceX * distanceX + distanceZ * distanceZ < PLAYER_RADIUS * PLAYER_RADIUS;
 }
 
-function hasCollision(position: ThreeVector3): boolean {
+function hasCollision(position: THREE.Vector3): boolean {
   const gridPosition = worldToGrid(position);
   const minX = -0.5 + PLAYER_RADIUS;
   const minZ = -0.5 + PLAYER_RADIUS;
@@ -485,7 +483,7 @@ function setPointerFromEvent(event: PointerEvent): void {
   pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
 }
 
-function faceWorldPoint(point: ThreeVector3): void {
+function faceWorldPoint(point: THREE.Vector3): void {
   const playerWorldPosition = new THREE.Vector3();
   player.getWorldPosition(playerWorldPosition);
 
@@ -499,7 +497,7 @@ function faceWorldPoint(point: ThreeVector3): void {
   player.rotation.y = Math.atan2(direction.x, direction.z);
 }
 
-function attackToward(point: ThreeVector3): void {
+function attackToward(point: THREE.Vector3): void {
   if (attack.cooldownRemaining > 0) {
     return;
   }
@@ -546,7 +544,9 @@ function updateAttack(deltaSeconds: number): void {
   swipeEffect.rotation.y = player.rotation.y - 0.68 + progress * 1.36;
   swipeEffect.scale.set(scale, 1, scale);
 
-  const [glow, main] = swipeEffect.children;
+  const [glow, main] = swipeEffect.children as Array<
+    THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>
+  >;
   glow.material.opacity = 0.24 * fade;
   main.material.opacity = 0.74 * fade;
 
@@ -567,7 +567,7 @@ const keyMoves = new Map([
   ["KeyD", [1, 0]],
 ]);
 
-function getHeldMoveDirection(): ThreeVector3 {
+function getHeldMoveDirection(): THREE.Vector3 {
   const direction = new THREE.Vector3(0, 0, 0);
 
   for (const code of pressedMoveKeys) {
