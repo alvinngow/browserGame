@@ -10,6 +10,7 @@ import {
 } from './utils/window.js';
 import { MovementInput } from './utils/movement.js';
 import { generateWorld } from './utils/world.js';
+import { getHotbarSlots, Hotbar } from './utils/hotbar.js';
 
 const canvas = getRequiredElement<HTMLCanvasElement>('#game');
 const scoreEl = getRequiredElement<HTMLElement>('#score');
@@ -76,6 +77,8 @@ const raycaster = new THREE.Raycaster();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const clickPoint = new THREE.Vector3();
 const movementInput = new MovementInput();
+const hotbarSlots = getHotbarSlots();
+const hotbar = new Hotbar(hotbarSlots);
 
 const player = new Player(PLAYER_RADIUS, PLAYER_SPEED);
 world.add(player.object);
@@ -222,6 +225,14 @@ function handlePointerDown(event: PointerEvent): void {
 }
 
 listenToWindow('keydown', (event) => {
+  const selectedSlot = hotbar.selectFromKey(event.code);
+
+  if (selectedSlot !== null) {
+    event.preventDefault();
+    toastEl.textContent = `Slot ${selectedSlot} selected.`;
+    return;
+  }
+
   if (!movementInput.isMovementKey(event.code)) {
     return;
   }
@@ -240,6 +251,14 @@ listenToWindow('blur', () => {
 
 canvas.addEventListener('pointerdown', handlePointerDown);
 resetButton.addEventListener('click', resetGame);
+
+for (const slot of hotbarSlots) {
+  slot.addEventListener('click', () => {
+    const selectedSlot = Number(slot.dataset.slot);
+    hotbar.select(selectedSlot);
+    toastEl.textContent = `Slot ${selectedSlot} selected.`;
+  });
+}
 
 listenToWindow('resize', () => resize(renderer, camera));
 resetGame();
