@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Skyglass Isles</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="game"></canvas>
+
+      <section class="hud" aria-label="Game status">
+        <div>
+          <span class="label">Crystals</span>
+          <strong id="score">0 / 7</strong>
+        </div>
+        <div>
+          <span class="label">Distance</span>
+          <strong id="moves">0</strong>
+        </div>
+        <button id="reset" type="button" title="Reset run">Reset</button>
+      </section>
+
+      <section class="toast" id="toast" aria-live="polite">
+        Use WASD or arrow keys to collect every crystal.
+      </section>
+    </main>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.165.0/build/three.module.js"
+        }
+      }
+    </script>
+    <script type="module" src="./dist/game.js"></script>
+  </body>
+</html>

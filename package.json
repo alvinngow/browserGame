@@ -1,0 +1,17 @@
+{
+  "name": "skyglass-isles",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "dev": "python -m http.server 5173"
+  },
+  "dependencies": {
+    "three": "^0.165.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
