@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
-    "dev": "python -m http.server 5173"
+    "dev": "node scripts/dev-server.mjs"
   },
   "dependencies": {
     "three": "^0.165.0"

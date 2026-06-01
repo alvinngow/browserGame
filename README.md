@@ -25,5 +25,7 @@ http://localhost:5173
 ## Development
 
 - Source: `src/game.ts`
+- Entities: `src/entities`
 - Browser build: `dist/game.js`
 - Type-check only: `npm run check`
+- Quick reload dev server: `npm run dev`

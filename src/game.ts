@@ -1,16 +1,11 @@
-import * as THREE from "three";
+import * as THREE from 'three';
+import { Player } from './entities/Player.js';
+import { Enemy } from './entities/enemies/Enemy.js';
+import { TrainingDummyEnemy } from './entities/enemies/TrainingDummyEnemy.js';
 
 type GridPosition = {
   x: number;
   z: number;
-};
-
-type AttackState = {
-  active: boolean;
-  elapsed: number;
-  duration: number;
-  cooldown: number;
-  cooldownRemaining: number;
 };
 
 type CrystalMesh = THREE.Mesh & {
@@ -31,26 +26,26 @@ function getElement<T extends Element>(selector: string): T {
   return element;
 }
 
-const canvas = getElement<HTMLCanvasElement>("#game");
-const scoreEl = getElement<HTMLElement>("#score");
-const distanceEl = getElement<HTMLElement>("#moves");
-const toastEl = getElement<HTMLElement>("#toast");
-const resetButton = getElement<HTMLButtonElement>("#reset");
+const canvas = getElement<HTMLCanvasElement>('#game');
+const scoreEl = getElement<HTMLElement>('#score');
+const distanceEl = getElement<HTMLElement>('#moves');
+const toastEl = getElement<HTMLElement>('#toast');
+const resetButton = getElement<HTMLButtonElement>('#reset');
 
 const TILE = 1;
 const PLAYER_RADIUS = 0.28;
 const PLAYER_SPEED = 3.1;
 const CRYSTAL_PICKUP_RADIUS = 0.42;
 const MAP = [
-  "....#....",
-  "..C...C..",
-  ".##..#...",
-  "....P..C.",
-  ".C..##...",
-  "...C.....",
-  "..#...##.",
-  ".C....C..",
-  "....#....",
+  '....#....',
+  '..C...C..',
+  '.##..#...',
+  '...EP..C.',
+  '.C..##...',
+  '...C.....',
+  '..#...##.',
+  '.C....C..',
+  '....#....',
 ];
 
 const scene = new THREE.Scene();
@@ -64,7 +59,7 @@ camera.lookAt(0, 0, 0);
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
   canvas,
-  powerPreference: "high-performance",
+  powerPreference: 'high-performance',
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
@@ -93,9 +88,10 @@ const materials = {
   grassAlt: new THREE.MeshStandardMaterial({ color: 0x69b46e, roughness: 0.9 }),
   edge: new THREE.MeshStandardMaterial({ color: 0x234235, roughness: 0.95 }),
   stone: new THREE.MeshStandardMaterial({ color: 0x5c6761, roughness: 0.8 }),
-  stoneTop: new THREE.MeshStandardMaterial({ color: 0x87928a, roughness: 0.75 }),
-  player: new THREE.MeshStandardMaterial({ color: 0xf6c555, roughness: 0.44 }),
-  playerTrim: new THREE.MeshStandardMaterial({ color: 0x273f37, roughness: 0.55 }),
+  stoneTop: new THREE.MeshStandardMaterial({
+    color: 0x87928a,
+    roughness: 0.75,
+  }),
   crystal: new THREE.MeshStandardMaterial({
     color: 0x6ff2d5,
     emissive: 0x1bc5b1,
@@ -114,10 +110,6 @@ const materials = {
 const tileGeometry = new THREE.BoxGeometry(TILE, 0.28, TILE);
 const blockGeometry = new THREE.BoxGeometry(TILE, 0.9, TILE);
 const crystalGeometry = new THREE.OctahedronGeometry(0.23, 0);
-const shadowGeometry = new THREE.CircleGeometry(0.34, 28);
-const playerBodyGeometry = new THREE.SphereGeometry(0.34, 24, 20);
-const playerHatGeometry = new THREE.ConeGeometry(0.28, 0.4, 24);
-const swipeGeometry = createSwipeGeometry();
 
 const width = MAP[0].length;
 const depth = MAP.length;
@@ -126,23 +118,17 @@ const offsetZ = (depth - 1) / 2;
 
 const blocked = new Set<string>();
 const crystals = new Map<string, CrystalMesh>();
+const enemies: Enemy[] = [];
 let start: GridPosition = { x: 0, z: 0 };
+const enemyStarts: GridPosition[] = [];
 let distanceTravelled = 0;
 let collected = 0;
-let bobClock = 0;
 let lastFrameTime = 0;
 
 const pointer = new THREE.Vector2();
 const raycaster = new THREE.Raycaster();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const clickPoint = new THREE.Vector3();
-const attack: AttackState = {
-  active: false,
-  elapsed: 0,
-  duration: 0.24,
-  cooldown: 0.12,
-  cooldownRemaining: 0,
-};
 const pressedMoveKeys = new Set<string>();
 
 function tileKey(x: number, z: number): string {
@@ -155,7 +141,10 @@ function worldPos(x: number, z: number, y = 0): THREE.Vector3 {
 
 function createTile(x: number, z: number, kind: string): void {
   const isAlt = (x + z) % 2 === 0;
-  const tile = new THREE.Mesh(tileGeometry, isAlt ? materials.grass : materials.grassAlt);
+  const tile = new THREE.Mesh(
+    tileGeometry,
+    isAlt ? materials.grass : materials.grassAlt,
+  );
   tile.position.copy(worldPos(x, z, -0.16));
   tile.castShadow = false;
   tile.receiveShadow = true;
@@ -167,7 +156,7 @@ function createTile(x: number, z: number, kind: string): void {
   edge.receiveShadow = true;
   world.add(edge);
 
-  if (kind === "#") {
+  if (kind === '#') {
     blocked.add(tileKey(x, z));
     const block = new THREE.Mesh(blockGeometry, materials.stone);
     block.position.copy(worldPos(x, z, 0.28));
@@ -175,7 +164,10 @@ function createTile(x: number, z: number, kind: string): void {
     block.receiveShadow = true;
     world.add(block);
 
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.08, 0.84), materials.stoneTop);
+    const cap = new THREE.Mesh(
+      new THREE.BoxGeometry(0.84, 0.08, 0.84),
+      materials.stoneTop,
+    );
     cap.position.copy(worldPos(x, z, 0.78));
     cap.castShadow = true;
     world.add(cap);
@@ -208,110 +200,6 @@ function createWater(): void {
   scene.add(water);
 }
 
-function createPlayer(): THREE.Group {
-  const group = new THREE.Group();
-
-  const shadow = new THREE.Mesh(
-    shadowGeometry,
-    new THREE.MeshBasicMaterial({
-      color: 0x07100e,
-      transparent: true,
-      opacity: 0.28,
-      depthWrite: false,
-    }),
-  );
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.01;
-  group.add(shadow);
-
-  const body = new THREE.Mesh(playerBodyGeometry, materials.player);
-  body.position.y = 0.44;
-  body.castShadow = true;
-  group.add(body);
-
-  const hat = new THREE.Mesh(playerHatGeometry, materials.playerTrim);
-  hat.position.y = 0.86;
-  hat.castShadow = true;
-  group.add(hat);
-
-  const eyeGeometry = new THREE.SphereGeometry(0.035, 10, 8);
-  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x10231d });
-  const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-  leftEye.position.set(-0.11, 0.52, 0.31);
-  const rightEye = leftEye.clone();
-  rightEye.position.x = 0.11;
-  group.add(leftEye, rightEye);
-
-  return group;
-}
-
-function createSwipeGeometry(): THREE.BufferGeometry {
-  const vertices: number[] = [];
-  const indices: number[] = [];
-  const segments = 18;
-  const arc = Math.PI * 0.88;
-  const innerRadius = 0.42;
-  const outerRadius = 1.05;
-
-  for (let i = 0; i <= segments; i += 1) {
-    const t = i / segments;
-    const angle = -arc / 2 + arc * t;
-    const outerX = Math.sin(angle) * outerRadius;
-    const outerZ = Math.cos(angle) * outerRadius;
-    const innerX = Math.sin(angle) * innerRadius;
-    const innerZ = Math.cos(angle) * innerRadius;
-
-    vertices.push(outerX, 0, outerZ, innerX, 0, innerZ);
-  }
-
-  for (let i = 0; i < segments; i += 1) {
-    const start = i * 2;
-    indices.push(start, start + 1, start + 2, start + 1, start + 3, start + 2);
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(vertices, 3),
-  );
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-
-  return geometry;
-}
-
-function createSwipeEffect(): THREE.Group {
-  const group = new THREE.Group();
-  const main = new THREE.Mesh(
-    swipeGeometry,
-    new THREE.MeshBasicMaterial({
-      color: 0xfff0a6,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    }),
-  );
-  const glow = new THREE.Mesh(
-    swipeGeometry,
-    new THREE.MeshBasicMaterial({
-      color: 0x62f7dc,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    }),
-  );
-
-  main.position.y = 0.48;
-  glow.position.y = 0.46;
-  glow.scale.setScalar(1.12);
-  group.add(glow, main);
-  group.visible = false;
-
-  return group;
-}
-
 createWater();
 
 for (let z = 0; z < MAP.length; z += 1) {
@@ -319,21 +207,29 @@ for (let z = 0; z < MAP.length; z += 1) {
     const kind = MAP[z][x];
     createTile(x, z, kind);
 
-    if (kind === "P") {
+    if (kind === 'P') {
       start = { x, z };
     }
 
-    if (kind === "C") {
+    if (kind === 'E') {
+      enemyStarts.push({ x, z });
+    }
+
+    if (kind === 'C') {
       createCrystal(x, z);
     }
   }
 }
 
-const player = createPlayer();
-world.add(player);
+const player = new Player(PLAYER_RADIUS, PLAYER_SPEED);
+world.add(player.object);
 
-const swipeEffect = createSwipeEffect();
-world.add(swipeEffect);
+for (const enemyStart of enemyStarts) {
+  const enemy = new TrainingDummyEnemy();
+  enemy.reset(worldPos(enemyStart.x, enemyStart.z, 0));
+  enemies.push(enemy);
+  world.add(enemy.object);
+}
 
 const totalCrystals = crystals.size;
 
@@ -346,19 +242,19 @@ function resetGame(): void {
   pressedMoveKeys.clear();
   distanceTravelled = 0;
   collected = 0;
-  player.position.copy(worldPos(start.x, start.z, 0));
-  player.rotation.y = 0;
-  swipeEffect.visible = false;
-  attack.active = false;
-  attack.elapsed = 0;
-  attack.cooldownRemaining = 0;
+  player.reset(worldPos(start.x, start.z, 0));
+
+  enemies.forEach((enemy, index) => {
+    const enemyStart = enemyStarts[index];
+    enemy.reset(worldPos(enemyStart.x, enemyStart.z, 0));
+  });
 
   for (const crystal of crystals.values()) {
     crystal.visible = true;
     crystal.scale.setScalar(1);
   }
 
-  toastEl.textContent = "Use WASD or arrow keys to move. Left click to attack.";
+  toastEl.textContent = 'Use WASD or arrow keys to move. Left click to attack.';
   updateHud();
 }
 
@@ -380,7 +276,10 @@ function circleIntersectsTile(
   const distanceX = circleX - closestX;
   const distanceZ = circleZ - closestZ;
 
-  return distanceX * distanceX + distanceZ * distanceZ < PLAYER_RADIUS * PLAYER_RADIUS;
+  return (
+    distanceX * distanceX + distanceZ * distanceZ <
+    PLAYER_RADIUS * PLAYER_RADIUS
+  );
 }
 
 function hasCollision(position: THREE.Vector3): boolean {
@@ -400,7 +299,7 @@ function hasCollision(position: THREE.Vector3): boolean {
   }
 
   for (const key of blocked) {
-    const [tileX, tileZ] = key.split(",").map(Number);
+    const [tileX, tileZ] = key.split(',').map(Number);
 
     if (circleIntersectsTile(gridPosition.x, gridPosition.z, tileX, tileZ)) {
       return true;
@@ -408,19 +307,6 @@ function hasCollision(position: THREE.Vector3): boolean {
   }
 
   return false;
-}
-
-function moveAxis(deltaX: number, deltaZ: number): boolean {
-  const nextPosition = player.position.clone();
-  nextPosition.x += deltaX;
-  nextPosition.z += deltaZ;
-
-  if (hasCollision(nextPosition)) {
-    return false;
-  }
-
-  player.position.copy(nextPosition);
-  return true;
 }
 
 function collectCurrentTile(): void {
@@ -442,37 +328,26 @@ function collectCurrentTile(): void {
     collected += 1;
     toastEl.textContent =
       collected === totalCrystals
-        ? "All crystals collected. The island is humming."
-        : "Crystal gathered.";
+        ? 'All crystals collected. The island is humming.'
+        : 'Crystal gathered.';
     updateHud();
   }
 }
 
 function updateMovement(deltaSeconds: number): void {
   const direction = getHeldMoveDirection();
+  const result = player.move(
+    direction,
+    deltaSeconds,
+    (position) => !hasCollision(position),
+  );
 
-  if (direction.lengthSq() === 0) {
+  if (result.blocked && direction.lengthSq() > 0) {
+    toastEl.textContent = 'That path is blocked.';
     return;
   }
 
-  direction.normalize();
-  const distance = PLAYER_SPEED * deltaSeconds;
-  const movementX = direction.x * distance;
-  const movementZ = direction.z * distance;
-  const previousPosition = player.position.clone();
-
-  moveAxis(movementX, 0);
-  moveAxis(0, movementZ);
-
-  const travelled = previousPosition.distanceTo(player.position);
-
-  if (travelled === 0) {
-    toastEl.textContent = "That path is blocked.";
-    return;
-  }
-
-  distanceTravelled += travelled;
-  player.rotation.y = Math.atan2(direction.x, direction.z);
+  distanceTravelled += result.travelled;
   collectCurrentTile();
   updateHud();
 }
@@ -483,33 +358,10 @@ function setPointerFromEvent(event: PointerEvent): void {
   pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
 }
 
-function faceWorldPoint(point: THREE.Vector3): void {
-  const playerWorldPosition = new THREE.Vector3();
-  player.getWorldPosition(playerWorldPosition);
-
-  const direction = point.clone().sub(playerWorldPosition);
-  direction.y = 0;
-
-  if (direction.lengthSq() < 0.0001) {
-    return;
-  }
-
-  player.rotation.y = Math.atan2(direction.x, direction.z);
-}
-
 function attackToward(point: THREE.Vector3): void {
-  if (attack.cooldownRemaining > 0) {
-    return;
+  if (player.attackToward(point)) {
+    toastEl.textContent = 'Slash!';
   }
-
-  faceWorldPoint(point);
-  attack.active = true;
-  attack.elapsed = 0;
-  attack.cooldownRemaining = attack.duration + attack.cooldown;
-  swipeEffect.visible = true;
-  swipeEffect.position.copy(player.position);
-  swipeEffect.rotation.y = player.rotation.y;
-  toastEl.textContent = "Slash!";
 }
 
 function handlePointerDown(event: PointerEvent): void {
@@ -526,45 +378,15 @@ function handlePointerDown(event: PointerEvent): void {
   }
 }
 
-function updateAttack(deltaSeconds: number): void {
-  if (attack.cooldownRemaining > 0) {
-    attack.cooldownRemaining = Math.max(0, attack.cooldownRemaining - deltaSeconds);
-  }
-
-  if (!attack.active) {
-    return;
-  }
-
-  attack.elapsed += deltaSeconds;
-  const progress = Math.min(attack.elapsed / attack.duration, 1);
-  const fade = Math.sin(progress * Math.PI);
-  const scale = 0.72 + progress * 0.52;
-
-  swipeEffect.position.copy(player.position);
-  swipeEffect.rotation.y = player.rotation.y - 0.68 + progress * 1.36;
-  swipeEffect.scale.set(scale, 1, scale);
-
-  const [glow, main] = swipeEffect.children as Array<
-    THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>
-  >;
-  glow.material.opacity = 0.24 * fade;
-  main.material.opacity = 0.74 * fade;
-
-  if (progress >= 1) {
-    attack.active = false;
-    swipeEffect.visible = false;
-  }
-}
-
 const keyMoves = new Map([
-  ["ArrowUp", [0, -1]],
-  ["KeyW", [0, -1]],
-  ["ArrowDown", [0, 1]],
-  ["KeyS", [0, 1]],
-  ["ArrowLeft", [-1, 0]],
-  ["KeyA", [-1, 0]],
-  ["ArrowRight", [1, 0]],
-  ["KeyD", [1, 0]],
+  ['ArrowUp', [-1, -1]],
+  ['KeyW', [-1, -1]],
+  ['ArrowDown', [1, 1]],
+  ['KeyS', [1, 1]],
+  ['ArrowLeft', [-1, 1]],
+  ['KeyA', [-1, 1]],
+  ['ArrowRight', [1, -1]],
+  ['KeyD', [1, -1]],
 ]);
 
 function getHeldMoveDirection(): THREE.Vector3 {
@@ -587,7 +409,7 @@ function getHeldMoveDirection(): THREE.Vector3 {
   return direction;
 }
 
-window.addEventListener("keydown", (event) => {
+window.addEventListener('keydown', (event) => {
   if (!keyMoves.has(event.code)) {
     return;
   }
@@ -596,16 +418,16 @@ window.addEventListener("keydown", (event) => {
   pressedMoveKeys.add(event.code);
 });
 
-window.addEventListener("keyup", (event) => {
+window.addEventListener('keyup', (event) => {
   pressedMoveKeys.delete(event.code);
 });
 
-window.addEventListener("blur", () => {
+window.addEventListener('blur', () => {
   pressedMoveKeys.clear();
 });
 
-canvas.addEventListener("pointerdown", handlePointerDown);
-resetButton.addEventListener("click", resetGame);
+canvas.addEventListener('pointerdown', handlePointerDown);
+resetButton.addEventListener('click', resetGame);
 
 function resize(): void {
   const widthPx = window.innerWidth;
@@ -621,7 +443,7 @@ function resize(): void {
   camera.updateProjectionMatrix();
 }
 
-window.addEventListener("resize", resize);
+window.addEventListener('resize', resize);
 resize();
 resetGame();
 
@@ -629,10 +451,9 @@ function animate(time: number): void {
   const seconds = time * 0.001;
   const deltaSeconds = Math.min(0.05, seconds - (lastFrameTime || seconds));
   lastFrameTime = seconds;
-  bobClock += deltaSeconds;
 
   updateMovement(deltaSeconds);
-  player.position.y = Math.sin(bobClock * 4.5) * 0.035;
+  player.update({ deltaSeconds, elapsedSeconds: seconds });
 
   for (const crystal of crystals.values()) {
     if (!crystal.visible) {
@@ -640,10 +461,15 @@ function animate(time: number): void {
     }
 
     crystal.rotation.y += 0.025;
-    crystal.position.y = crystal.userData.homeY + Math.sin(seconds * 2.8 + crystal.position.x) * 0.07;
+    crystal.position.y =
+      crystal.userData.homeY +
+      Math.sin(seconds * 2.8 + crystal.position.x) * 0.07;
   }
 
-  updateAttack(deltaSeconds);
+  for (const enemy of enemies) {
+    enemy.update({ deltaSeconds, elapsedSeconds: seconds });
+  }
+
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
